@@ -1,0 +1,340 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a1a; color: #e0e0e0; }
+  .container { padding: 1rem 0; }
+  .info-box { background: #2a2a2a; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; font-size: 14px; color: #e0e0e0; line-height: 1.6; border: 0.5px solid #404040; }
+  .info-box strong { display: block; margin-bottom: 6px; font-weight: 500; }
+  .scenarios { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .scenario-btn { padding: 8px 12px; border: 0.5px solid #404040; background: transparent; border-radius: 6px; cursor: pointer; color: #e0e0e0; font-size: 13px; transition: all 0.2s; }
+  .scenario-btn:hover { background: #353535; }
+  .scenario-btn.active { border-color: #5b9fff; background: #2a4a7f; color: #fff; font-weight: 500; }
+  #network { width: 100%; height: 550px; border: 0.5px solid #404040; border-radius: 8px; background: #1a1a1a; margin-bottom: 1rem; position: relative; }
+  .organism-detail { background: #2a2a2a; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: none; border: 0.5px solid #404040; }
+  .organism-detail.active { display: block; }
+  .organism-detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
+  .detail-color { width: 24px; height: 24px; border-radius: 50%; }
+  .detail-name { font-size: 16px; font-weight: 500; color: #fff; }
+  .organism-detail-content { font-size: 13px; line-height: 1.6; color: #e0e0e0; }
+  .detail-row { margin-bottom: 8px; }
+  .detail-label { font-weight: 500; color: #fff; display: inline-block; min-width: 80px; }
+  .legend { display: flex; gap: 1.5rem; margin: 1rem 0; flex-wrap: wrap; font-size: 12px; color: #e0e0e0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 1.5rem 0; }
+  .btn { padding: 8px 12px; border: 0.5px solid #404040; background: transparent; border-radius: 6px; cursor: pointer; color: #e0e0e0; font-size: 13px; transition: all 0.2s; }
+  .btn:hover { background: #353535; }
+  .add-species-panel { background: #2a2a2a; border-radius: 8px; padding: 1rem; margin-top: 1rem; display: none; border: 0.5px solid #404040; }
+  .add-species-panel.active { display: block; }
+  .add-species-panel input, .add-species-panel select { padding: 6px 8px; border: 0.5px solid #404040; border-radius: 6px; font-size: 13px; margin-bottom: 8px; width: 100%; background: #1a1a1a; color: #e0e0e0; }
+  .add-species-panel input::placeholder { color: #666; }
+  .toggles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 1rem; }
+  .toggle-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: #2a2a2a; border-radius: 6px; cursor: pointer; user-select: none; border: 0.5px solid #404040; }
+  .toggle-item:hover { background: #353535; }
+  .toggle-item input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; }
+  .toggle-label { font-size: 13px; flex: 1; color: #e0e0e0; }
+  .vis-network { background: #1a1a1a !important; }
+  .vis-network div.vis-navigation div.vis-button { background-color: #353535 !important; border: 0.5px solid #404040 !important; color: #e0e0e0 !important; }
+  .vis-network div.vis-navigation div.vis-button:hover { background-color: #454545 !important; }
+</style>
+
+<div class="container">
+  <div class="info-box" id="infoBox">
+    <strong>Odkrywanie ról w ekosystemie</strong>
+    <div id="infoText">Pełny ekosystem. Wszyscy członkowie są obecni. Obserwuj przepływy energii.</div>
+  </div>
+
+  <div style="margin-bottom: 1.5rem;">
+    <div style="font-size: 13px; font-weight: 500; margin-bottom: 8px; color: #e0e0e0;">Scenariusze edukacyjne:</div>
+    <div class="scenarios">
+      <button class="scenario-btn active" onclick="loadScenario('full')">Pełny ekosystem</button>
+      <button class="scenario-btn" onclick="loadScenario('no-decomposers')">Bez rozkładaczy</button>
+      <button class="scenario-btn" onclick="loadScenario('no-producers')">Bez producentów</button>
+      <button class="scenario-btn" onclick="loadScenario('no-carnivores')">Bez drapieżników</button>
+      <button class="scenario-btn" onclick="loadScenario('no-herbivores')">Bez roślinożerców</button>
+      <button class="scenario-btn" onclick="loadScenario('custom')">Własne ustawienia</button>
+    </div>
+  </div>
+
+  <div id="network"></div>
+
+  <div class="organism-detail" id="organismDetail">
+    <div class="organism-detail-header">
+      <div class="detail-color" id="detailColor"></div>
+      <div class="detail-name" id="detailName"></div>
+    </div>
+    <div class="organism-detail-content" id="detailContent"></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background: #639922;"></div> Producenci</div>
+    <div class="legend-item"><div class="legend-dot" style="background: #378ADD;"></div> Roślinożercy</div>
+    <div class="legend-item"><div class="legend-dot" style="background: #7F77DD;"></div> Mięsożercy</div>
+    <div class="legend-item"><div class="legend-dot" style="background: #888780;"></div> Rozkładacze</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" onclick="toggleAddSpecies()">+ Dodaj gatunek</button>
+    <button class="btn" onclick="resetEcosystem()">Resetuj ekosystem</button>
+  </div>
+
+  <div class="add-species-panel" id="addSpeciesPanel">
+    <div style="font-size: 13px; font-weight: 500; margin-bottom: 10px; color: #e0e0e0;">Dodaj nowy gatunek:</div>
+    <input type="text" id="speciesName" placeholder="Nazwa gatunku (np. Pszczoła)">
+    <select id="speciesType">
+      <option value="producer">Producent (roślina)</option>
+      <option value="herbivore">Roślinożerca</option>
+      <option value="carnivore">Mięsożerca</option>
+      <option value="decomposer">Rozkładacz</option>
+    </select>
+    <input type="text" id="speciesDescription" placeholder="Krótki opis (np. Zapyla kwiaty)">
+    <div style="display: flex; gap: 8px;">
+      <button class="btn" onclick="addSpecies()">Dodaj</button>
+      <button class="btn" onclick="toggleAddSpecies()">Anuluj</button>
+    </div>
+  </div>
+
+  <div style="margin-top: 1.5rem; display: none;" id="customPanel">
+    <div style="font-size: 13px; font-weight: 500; margin-bottom: 10px; color: #e0e0e0;">Dostosuj ekosystem:</div>
+    <div class="toggles" id="toggles"></div>
+  </div>
+</div>
+
+<script>
+  let organisms = [
+    { id: 1, label: 'Trawa', type: 'producer', color: '#639922', eats: '-', energy: '100%', description: 'Producent - tworzy energię z słoneczności przez fotosynezę' },
+    { id: 2, label: 'Koniczyna', type: 'producer', color: '#639922', eats: '-', energy: '100%', description: 'Producent - roślina leguminosa, wzbogaca glebę azotem' },
+    { id: 3, label: 'Królik', type: 'herbivore', color: '#378ADD', eats: 'Trawa, Koniczyna', energy: '10%', description: 'Roślinożerca - zjada rośliny, traci 90% energii jako ciepło i ruchy' },
+    { id: 4, label: 'Owca', type: 'herbivore', color: '#378ADD', eats: 'Trawa, Koniczyna', energy: '10%', description: 'Roślinożerca - zwierzę pasterskie, bardzo ważne dla człowieka' },
+    { id: 5, label: 'Lis', type: 'carnivore', color: '#7F77DD', eats: 'Królik, Owca', energy: '10%', description: 'Mięsożerca - drapieżnik, kontroluje populacje roślinożerców' },
+    { id: 6, label: 'Orzeł', type: 'carnivore', color: '#7F77DD', eats: 'Królik, Lis', energy: '10%', description: 'Mięsożerca - ptak drapieżny, wierzchołek łańcucha pokarmowego' },
+    { id: 7, label: 'Mikroorganizmy', type: 'decomposer', color: '#888780', eats: 'Martwa materia', energy: '∞', description: 'Rozkładacz - rozkłada martwą materię, zwraca składniki do gleby' }
+  ];
+
+  let connections = [
+    { from: 1, to: 3, label: 'karmi' },
+    { from: 1, to: 4, label: 'karmi' },
+    { from: 2, to: 3, label: 'karmi' },
+    { from: 2, to: 4, label: 'karmi' },
+    { from: 3, to: 5, label: 'karmi' },
+    { from: 3, to: 6, label: 'karmi' },
+    { from: 4, to: 5, label: 'karmi' },
+    { from: 5, to: 7, label: 'rozkład' },
+    { from: 6, to: 7, label: 'rozkład' },
+    { from: 3, to: 7, label: 'rozkład' },
+    { from: 4, to: 7, label: 'rozkład' }
+  ];
+
+  let network;
+  let activeTypes = new Set(['producer', 'herbivore', 'carnivore', 'decomposer']);
+  let nextId = 8;
+
+  function initNetwork(visibleOrganisms, visibleConnections) {
+    const nodes = new vis.DataSet(visibleOrganisms.map(o => ({
+      id: o.id,
+      label: o.label,
+      color: o.color,
+      title: o.description,
+      font: { size: 14, color: 'white' },
+      borderWidth: 2
+    })));
+
+    const edgeVisualization = visibleConnections.map((c, idx) => ({
+      from: c.from,
+      to: c.to,
+      arrows: 'to',
+      label: c.label,
+      smooth: { enabled: true, type: 'curvedCW' },
+      color: { color: 'rgba(180, 180, 180, 0.4)' },
+      font: { size: 11, color: '#999' },
+      id: `edge-${idx}`
+    }));
+
+    const edges = new vis.DataSet(edgeVisualization);
+    const options = {
+      physics: {
+        enabled: true,
+        stabilization: { iterations: 200 },
+        barnesHut: { gravitationalConstant: -30000, centralGravity: 0.3, springLength: 200, damping: 0.5 }
+      },
+      interaction: { navigationButtons: true, keyboard: true, zoomView: true, dragView: true },
+      edges: { arrows: { to: { enabled: true, scaleFactor: 0.7 } } },
+      nodes: {
+        margin: { top: 10, bottom: 10, left: 10, right: 10 },
+        widthConstraint: { maximum: 120 },
+        shape: 'circle',
+        scaling: { label: { enabled: true, min: 12, max: 20 } }
+      }
+    };
+
+    if (network) network.destroy();
+    const container = document.getElementById('network');
+    network = new vis.Network(container, { nodes, edges }, options);
+    network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+
+    network.on('click', function(params) {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        const organism = visibleOrganisms.find(o => o.id === nodeId);
+        if (organism) showOrganismDetail(organism);
+      }
+    });
+  }
+
+  function showOrganismDetail(organism) {
+    const detail = document.getElementById('organismDetail');
+    document.getElementById('detailColor').style.background = organism.color;
+    document.getElementById('detailName').textContent = organism.label;
+    const content = `
+      <div class="detail-row"><span class="detail-label">Rola:</span> ${organism.type === 'producer' ? 'Producent' : organism.type === 'herbivore' ? 'Roślinożerca' : organism.type === 'carnivore' ? 'Mięsożerca' : 'Rozkładacz'}</div>
+      <div class="detail-row"><span class="detail-label">Zjada:</span> ${organism.eats}</div>
+      <div class="detail-row"><span class="detail-label">Transfer energii:</span> ${organism.energy}</div>
+      <div class="detail-row" style="margin-top: 12px; padding-top: 12px; border-top: 0.5px solid #404040;">${organism.description}</div>
+    `;
+    document.getElementById('detailContent').innerHTML = content;
+    detail.classList.add('active');
+  }
+
+  function loadScenario(scenario) {
+    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('customPanel').style.display = 'none';
+
+    const scenarios = {
+      full: {
+        types: new Set(['producer', 'herbivore', 'carnivore', 'decomposer']),
+        info: '<strong>Pełny ekosystem</strong><div>Wszyscy członkowie są obecni. Energia płynie z producentów (100%) przez roślinożerców (10%) do mięsożerców (1%). Rozkładacze recyklują martwą materię.</div>'
+      },
+      'no-decomposers': {
+        types: new Set(['producer', 'herbivore', 'carnivore']),
+        info: '<strong>Bez rozkładaczy!</strong><div>Martwa materia się nie rozkłada. Składniki nie wracają do gleby. System zapaśla się szybko. Rośliny nie mają składników mineralnych.</div>'
+      },
+      'no-producers': {
+        types: new Set(['herbivore', 'carnivore', 'decomposer']),
+        info: '<strong>Bez producentów!</strong><div>Kolaps natychmiastowy! Roślinożercy nie mają co jeść. Mięsożercy nie mają ofiar. Cały ekosystem upadł w ciągu dni.</div>'
+      },
+      'no-carnivores': {
+        types: new Set(['producer', 'herbivore', 'decomposer']),
+        info: '<strong>Bez mięsożerców!</strong><div>Populacja roślinożerców robi się rozbuczona. Przeedają rośliny. Dochodzi do zapaści. Brak naturalnego predatora = katastrofa.</div>'
+      },
+      'no-herbivores': {
+        types: new Set(['producer', 'carnivore', 'decomposer']),
+        info: '<strong>Bez roślinożerców!</strong><div>Mięsożercy nie mają ofiar. Populacja mięsożerców załamuje się. Producenci rozbuchani rosnąć będą bez kontroli.</div>'
+      },
+      custom: {
+        types: new Set(['producer', 'herbivore', 'carnivore', 'decomposer']),
+        info: '<strong>Własne ustawienia</strong><div>Wyłącz lub włącz poszczególne części ekosystemu. Obserwuj równowagę w sieci pokarmowej.</div>'
+      }
+    };
+
+    const s = scenarios[scenario];
+    activeTypes = s.types;
+    document.getElementById('infoText').innerHTML = s.info;
+
+    if (scenario === 'custom') {
+      document.getElementById('customPanel').style.display = 'block';
+      updateToggles();
+    }
+
+    updateNetwork();
+  }
+
+  function updateNetwork() {
+    const visibleOrganisms = organisms.filter(o => activeTypes.has(o.type));
+    const visibleIds = new Set(visibleOrganisms.map(o => o.id));
+    const visibleConnections = connections.filter(c => visibleIds.has(c.from) && visibleIds.has(c.to));
+    initNetwork(visibleOrganisms, visibleConnections);
+  }
+
+  function updateToggles() {
+    const togglesDiv = document.getElementById('toggles');
+    togglesDiv.innerHTML = '';
+
+    const types = [
+      { type: 'producer', label: 'Producenci (rośliny)' },
+      { type: 'herbivore', label: 'Roślinożercy' },
+      { type: 'carnivore', label: 'Mięsożercy' },
+      { type: 'decomposer', label: 'Rozkładacze' }
+    ];
+
+    types.forEach(t => {
+      const label = document.createElement('label');
+      label.className = 'toggle-item';
+      label.innerHTML = `
+        <input type="checkbox" ${activeTypes.has(t.type) ? 'checked' : ''} onchange="toggleType('${t.type}')">
+        <span class="toggle-label">${t.label}</span>
+      `;
+      togglesDiv.appendChild(label);
+    });
+  }
+
+  function toggleType(type) {
+    if (activeTypes.has(type)) {
+      activeTypes.delete(type);
+    } else {
+      activeTypes.add(type);
+    }
+    updateNetwork();
+  }
+
+  function toggleAddSpecies() {
+    const panel = document.getElementById('addSpeciesPanel');
+    panel.classList.toggle('active');
+    if (panel.classList.contains('active')) {
+      document.getElementById('speciesName').focus();
+    }
+  }
+
+  function addSpecies() {
+    const name = document.getElementById('speciesName').value.trim();
+    const type = document.getElementById('speciesType').value;
+    const description = document.getElementById('speciesDescription').value.trim();
+
+    if (!name) {
+      alert('Wpisz nazwę gatunku!');
+      return;
+    }
+
+    const colors = { producer: '#639922', herbivore: '#378ADD', carnivore: '#7F77DD', decomposer: '#888780' };
+    const defaultEats = { producer: '-', herbivore: 'Rośliny', carnivore: 'Zwierzęta', decomposer: 'Martwa materia' };
+
+    organisms.push({
+      id: nextId++,
+      label: name,
+      type: type,
+      color: colors[type],
+      eats: defaultEats[type],
+      energy: type === 'producer' ? '100%' : '10%',
+      description: description || `${name} - nowy gatunek w ekosystemie`
+    });
+
+    activeTypes.add(type);
+    updateNetwork();
+    updateToggles();
+    toggleAddSpecies();
+
+    document.getElementById('speciesName').value = '';
+    document.getElementById('speciesDescription').value = '';
+  }
+
+  function resetEcosystem() {
+    organisms = [
+      { id: 1, label: 'Trawa', type: 'producer', color: '#639922', eats: '-', energy: '100%', description: 'Producent - tworzy energię z słoneczności przez fotosynezę' },
+      { id: 2, label: 'Koniczyna', type: 'producer', color: '#639922', eats: '-', energy: '100%', description: 'Producent - roślina leguminosa, wzbogaca glebę azotem' },
+      { id: 3, label: 'Królik', type: 'herbivore', color: '#378ADD', eats: 'Trawa, Koniczyna', energy: '10%', description: 'Roślinożerca - zjada rośliny, traci 90% energii jako ciepło i ruchy' },
+      { id: 4, label: 'Owca', type: 'herbivore', color: '#378ADD', eats: 'Trawa, Koniczyna', energy: '10%', description: 'Roślinożerca - zwierzę pasterskie, bardzo ważne dla człowieka' },
+      { id: 5, label: 'Lis', type: 'carnivore', color: '#7F77DD', eats: 'Królik, Owca', energy: '10%', description: 'Mięsożerca - drapieżnik, kontroluje populacje roślinożerców' },
+      { id: 6, label: 'Orzeł', type: 'carnivore', color: '#7F77DD', eats: 'Królik, Lis', energy: '10%', description: 'Mięsożerca - ptak drapieżny, wierzchołek łańcucha pokarmowego' },
+      { id: 7, label: 'Mikroorganizmy', type: 'decomposer', color: '#888780', eats: 'Martwa materia', energy: '∞', description: 'Rozkładacz - rozkłada martwą materię, zwraca składniki do gleby' }
+    ];
+    nextId = 8;
+    activeTypes = new Set(['producer', 'herbivore', 'carnivore', 'decomposer']);
+    updateNetwork();
+    updateToggles();
+    document.getElementById('customPanel').style.display = 'none';
+    loadScenario('full');
+  }
+
+  updateNetwork();
+</script>
